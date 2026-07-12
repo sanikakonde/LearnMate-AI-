@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% block title %}Resources & Projects{% endblock %}
+{% block page_title %}Resources & Projects{% endblock %}
+{% block content %}
+
+<!-- Project Recommendations -->
+<div class="section-header mb-4">
+  <div>
+    <h3 class="fw-bold mb-0">
+      <i class="bi bi-code-square text-primary me-2"></i>Recommended Projects
+    </h3>
+    <p class="text-muted mb-0">AI-generated projects for your career goal: <strong>{{ career_goal }}</strong></p>
+  </div>
+  <button class="btn btn-gradient" id="refreshProjectsBtn" onclick="refreshProjects()">
+    <i class="bi bi-arrow-clockwise me-2"></i>Regenerate
+  </button>
+</div>
+
+<div id="projectsContainer" class="row g-3 mb-5">
+  <!-- Projects are loaded automatically after the page paints -->
+  <div class="col-12" id="projectsLoadingState">
+    <div class="text-center text-muted py-4">
+      <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+      <span>Loading AI project recommendations…</span>
+    </div>
+  </div>
+</div>
+
+<!-- Curated Resources -->
+<div class="section-header mb-4">
+  <div>
+    <h3 class="fw-bold mb-0">
+      <i class="bi bi-collection-fill text-warning me-2"></i>Verified Learning Resources
+    </h3>
+    <p class="text-muted mb-0">Handpicked official and trusted resources — {{ curated_resources|length }} categories, 54+ resources</p>
+  </div>
+</div>
+
+<div class="row g-4">
+  {% for category in curated_resources %}
+  <div class="col-md-6 col-xl-4">
+    <div class="glass-card p-4 h-100">
+      <!-- Category Header -->
+      <div class="resource-category-header mb-3">
+        <div class="resource-cat-icon bg-gradient-{{ category.color }}">
+          <i class="bi {{ category.icon }}"></i>
+        </div>
+        <div>
+          <h6 class="fw-bold mb-0">{{ category.category }}</h6>
+          <span class="text-muted" style="font-size:0.7rem">{{ category.links|length }} resources</span>
+        </div>
+        <span class="ms-auto" style="font-size:0.65rem; background:rgba(34,197,94,0.12); color:#22c55e; border:1px solid rgba(34,197,94,0.3); border-radius:999px; padding:0.15rem 0.55rem; font-weight:700; white-space:nowrap;">
+          ✓ Verified
+        </span>
+      </div>
+      <!-- Resource Items -->
+      <div class="resource-list">
+        {% for item in category.links %}
+        <div class="resource-item-card">
+          <div class="resource-item-body">
+            <div class="fw-semibold small mb-1">{{ item.name }}</div>
+            <div class="text-muted" style="font-size:0.75rem; line-height:1.4">{{ item.description }}</div>
+          </div>
+          <a href="{{ item.url }}" target="_blank" rel="noopener noreferrer"
+             class="resource-open-btn" title="Open {{ item.name }}">
+            <i class="bi bi-box-arrow-up-right me-1"></i>Open
+          </a>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const CSRF_TOKEN = "{{ csrf_token() }}";
+
+// Auto-load project recommendations after the page has painted
+// so the tab opens instantly and the AI call happens in the background.
+document.addEventListener('DOMContentLoaded', function () {
+  loadProjects(false);
+});
+
+async function loadProjects(isRefresh) {
+  const btn = document.getElementById('refreshProjectsBtn');
+  if (isRefresh) {
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Generating...';
+    btn.disabled = true;
+  }
+
+  try {
+    const res = await fetch('/resources/api/projects', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','X-CSRFToken':CSRF_TOKEN},
+      body: JSON.stringify({})
+    });
+    const data = await res.json();
+
+    if (res.ok && data.projects) {
+      renderProjects(data.projects);
+      if (isRefresh) showToast('Projects regenerated!', 'success');
+    } else {
+      showProjectsError(data.error || 'Failed to load project recommendations.');
+    }
+  } catch(e) {
+    showProjectsError('Could not load project recommendations.');
+  }
+
+  if (isRefresh) {
+    btn.innerHTML = '<i class="bi bi-arrow-clockwise me-2"></i>Regenerate';
+    btn.disabled = false;
+  }
+}
+
+function refreshProjects() {
+  loadProjects(true);
+}
+
+function showProjectsError(msg) {
+  const container = document.getElementById('projectsContainer');
+  container.innerHTML = `
+    <div class="col-12">
+      <div class="alert alert-warning-glass">
+        <i class="bi bi-exclamation-triangle me-2"></i>${msg}
+      </div>
+    </div>`;
+}
+
+function renderProjects(projects) {
+  const container = document.getElementById('projectsContainer');
+  container.innerHTML = '';
+  if (!projects.length) {
+    container.innerHTML = `
+      <div class="col-12">
+        <div class="text-center text-muted py-4">
+          <i class="bi bi-code-slash display-4 mb-3 d-block"></i>
+          <p>No project recommendations yet.</p>
+          <button class="btn btn-gradient" onclick="refreshProjects()">Generate Projects</button>
+        </div>
+      </div>`;
+    return;
+  }
+  projects.forEach(p => {
+    const diffColors = {beginner:'success', intermediate:'warning', advanced:'danger'};
+    const color = diffColors[p.difficulty] || 'secondary';
+    const techs = (p.technologies||[]).slice(0,5).map(t => `<span class="tech-tag">${t}</span>`).join('');
+    const outcomes = (p.learning_outcomes||[]).slice(0,3)
+      .map(o => `<div class="small text-muted"><i class="bi bi-check2 text-success me-1"></i>${o}</div>`).join('');
+    container.innerHTML += `
+      <div class="col-md-6 col-lg-4">
+        <div class="glass-card p-4 h-100 project-rec-card">
+          <div class="d-flex align-items-start justify-content-between mb-3">
+            <h6 class="fw-bold mb-0">${p.title||''}</h6>
+            <span class="badge badge-${color}">${(p.difficulty||'').charAt(0).toUpperCase()+(p.difficulty||'').slice(1)}</span>
+          </div>
+          <p class="text-muted small mb-3">${p.description||''}</p>
+          <div class="tech-tags-wrap mb-3">${techs}</div>
+          ${outcomes ? `<div class="mb-2"><div class="small fw-semibold text-muted mb-1">Outcomes:</div>${outcomes}</div>` : ''}
+          ${p.duration_hours ? `<div class="small text-muted"><i class="bi bi-clock me-1"></i>~${p.duration_hours} hours</div>` : ''}
+        </div>
+      </div>`;
+  });
+}
+</script>
+{% endblock %}

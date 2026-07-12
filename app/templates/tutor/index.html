@@ -1,0 +1,284 @@
+{% extends "base.html" %}
+{% block title %}AI Tutor{% endblock %}
+{% block page_title %}AI Tutor{% endblock %}
+{% block content %}
+<div class="tutor-container">
+
+  <!-- Sidebar: Chat Sessions -->
+  <div class="tutor-sidebar glass-card">
+    <div class="tutor-sidebar-header">
+      <span class="fw-semibold">Conversations</span>
+      <button class="btn-icon-sm" onclick="newChatSession()" title="New chat">
+        <i class="bi bi-plus-lg"></i>
+      </button>
+    </div>
+    <div class="tutor-sessions" id="chatSessionsList">
+      {% if sessions %}
+        {% for s in sessions %}
+        <div class="chat-session-item {{ 'active' if active_session and active_session.id == s.id }}"
+             onclick="loadSession({{ s.id }})" id="session-item-{{ s.id }}">
+          <div class="csi-title">{{ s.title|truncate(35) }}</div>
+          <div class="csi-meta">{{ s.updated_at.strftime('%b %d, %H:%M') }}</div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="text-center text-muted p-3 small">
+          <i class="bi bi-chat-dots d-block mb-2 fs-3"></i>No conversations yet
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Main Chat Area -->
+  <div class="tutor-main glass-card">
+    <!-- Chat Header -->
+    <div class="tutor-header">
+      <div class="tutor-header-info">
+        <div class="tutor-avatar"><i class="bi bi-robot"></i></div>
+        <div>
+          <div class="fw-bold">LearnMate AI Tutor</div>
+          <div class="small text-muted">AI Powered • Domain-aware</div>
+        </div>
+      </div>
+      <div class="tutor-header-actions">
+        <span class="badge badge-gradient"><i class="bi bi-circle-fill text-success me-1" style="font-size:.6rem"></i>Online</span>
+      </div>
+    </div>
+
+    <!-- Messages Area -->
+    <div class="tutor-messages" id="messagesContainer">
+      {% if not messages %}
+      <div class="tutor-welcome" id="welcomeMessage">
+        <div class="tutor-welcome-icon"><i class="bi bi-robot"></i></div>
+        <h4 class="fw-bold">Hi, {{ current_user.get_display_name() }}!</h4>
+        <p class="text-muted">I'm your intelligent learning assistant.<br/>Ask me anything about technology, programming, career guidance, or your learning journey.</p>
+        <div class="tutor-suggestions">
+          {% set suggestions = [
+            'Explain the difference between supervised and unsupervised learning',
+            'How do I prepare for a Software Engineer interview?',
+            'Create a study plan for learning Python in 30 days',
+            'What projects should I build as a Data Science beginner?',
+          ] %}
+          {% for s in suggestions %}
+          <button class="suggestion-chip" onclick="sendSuggestion(this)">{{ s }}</button>
+          {% endfor %}
+        </div>
+      </div>
+      {% else %}
+        {% for msg in messages %}
+        <div class="message {{ 'message-user' if msg.role == 'user' else 'message-ai' }}">
+          {% if msg.role == 'assistant' %}
+          <div class="message-avatar ai-avatar"><i class="bi bi-robot"></i></div>
+          {% endif %}
+          <div class="message-bubble {{ 'user-bubble' if msg.role == 'user' else 'ai-bubble' }}">
+            <div class="message-content markdown-content">{{ msg.content }}</div>
+            <div class="message-time">{{ msg.created_at.strftime('%H:%M') }}</div>
+          </div>
+          {% if msg.role == 'user' %}
+          <div class="message-avatar user-avatar">{{ current_user.get_initials() }}</div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      {% endif %}
+    </div>
+
+    <!-- Typing Indicator -->
+    <div class="typing-indicator" id="typingIndicator" style="display:none">
+      <div class="message-avatar ai-avatar"><i class="bi bi-robot"></i></div>
+      <div class="typing-bubble">
+        <span></span><span></span><span></span>
+      </div>
+    </div>
+
+    <!-- Chat Input -->
+    <div class="tutor-input-area">
+      <div class="tutor-input-wrapper">
+        <textarea id="chatInput" class="tutor-input" placeholder="Ask me anything about technology, programming, or your career..."
+                  rows="1" onkeydown="handleInputKeydown(event)"
+                  oninput="autoResizeTextarea(this)"></textarea>
+        <div class="tutor-input-actions">
+          <button class="btn-send" id="sendBtn" onclick="sendMessage()">
+            <i class="bi bi-send-fill"></i>
+          </button>
+        </div>
+      </div>
+      <div class="tutor-input-footer">
+        <span class="small text-muted">
+          <i class="bi bi-shield-check me-1"></i>
+          LearnMate AI covers only technology learning topics • AI Powered
+        </span>
+        <span class="small text-muted" id="charCounter">0/4000</span>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentSessionId = {{ active_session.id if active_session else 'null' }};
+const CSRF_TOKEN = "{{ csrf_token() }}";
+
+function sendSuggestion(btn) {
+  document.getElementById('chatInput').value = btn.textContent;
+  sendMessage();
+}
+
+function autoResizeTextarea(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 160) + 'px';
+  document.getElementById('charCounter').textContent = el.value.length + '/4000';
+}
+
+function handleInputKeydown(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+}
+
+async function sendMessage() {
+  const input = document.getElementById('chatInput');
+  const question = input.value.trim();
+  if (!question) return;
+
+  input.value = '';
+  input.style.height = 'auto';
+  document.getElementById('charCounter').textContent = '0/4000';
+  document.getElementById('welcomeMessage')?.remove();
+
+  appendMessage('user', question);
+  showTyping(true);
+
+  const sendBtn = document.getElementById('sendBtn');
+  sendBtn.disabled = true;
+
+  try {
+    const res = await fetch('/tutor/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN },
+      body: JSON.stringify({ question, session_id: currentSessionId })
+    });
+    const data = await res.json();
+    showTyping(false);
+
+    if (data.error) {
+      appendMessage('ai', '⚠️ ' + data.error);
+    } else {
+      if (data.session_id && !currentSessionId) {
+        // Session was created on the fly (no pre-existing session)
+        currentSessionId = data.session_id;
+        addSessionToSidebar(currentSessionId, data.title || question.slice(0, 40));
+      } else if (data.title) {
+        // Session was pre-created by newChatSession(); update the
+        // existing sidebar item from "New Conversation" to the real title.
+        const existingItem = document.getElementById('session-item-' + data.session_id);
+        if (existingItem) {
+          const titleEl = existingItem.querySelector('.csi-title');
+          if (titleEl) titleEl.textContent = data.title;
+        }
+      }
+      appendMessage('ai', data.response, data.is_off_topic);
+    }
+  } catch(e) {
+    showTyping(false);
+    appendMessage('ai', '⚠️ Connection error. Please try again.');
+  }
+  sendBtn.disabled = false;
+  scrollToBottom();
+}
+
+function appendMessage(role, content, isOffTopic=false) {
+  const container = document.getElementById('messagesContainer');
+  const isUser = role === 'user';
+  const now = new Date().toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'});
+
+  const rendered = renderMarkdown(content);
+
+  const div = document.createElement('div');
+  div.className = `message ${isUser ? 'message-user' : 'message-ai'}`;
+  div.innerHTML = `
+    ${!isUser ? `<div class="message-avatar ai-avatar"><i class="bi bi-robot"></i></div>` : ''}
+    <div class="message-bubble ${isUser ? 'user-bubble' : 'ai-bubble' + (isOffTopic ? ' off-topic-bubble' : '')}">
+      <div class="message-content markdown-content">${rendered}</div>
+      <div class="message-time">${now}</div>
+    </div>
+    ${isUser ? `<div class="message-avatar user-avatar">{{ current_user.get_initials() }}</div>` : ''}
+  `;
+  container.appendChild(div);
+  document.querySelectorAll('pre code').forEach(b => hljs.highlightElement(b));
+  scrollToBottom();
+}
+
+function showTyping(show) {
+  document.getElementById('typingIndicator').style.display = show ? 'flex' : 'none';
+  if (show) scrollToBottom();
+}
+
+function scrollToBottom() {
+  const c = document.getElementById('messagesContainer');
+  c.scrollTop = c.scrollHeight;
+}
+
+async function newChatSession() {
+  const res = await fetch('/tutor/api/new-session', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF_TOKEN }
+  });
+  const data = await res.json();
+  currentSessionId = data.session_id;
+  document.getElementById('messagesContainer').innerHTML = '';
+  // Add welcome back
+  showWelcome();
+  addSessionToSidebar(data.session_id, 'New Conversation', true);
+}
+
+function showWelcome() {
+  const c = document.getElementById('messagesContainer');
+  c.innerHTML = `
+    <div class="tutor-welcome" id="welcomeMessage">
+      <div class="tutor-welcome-icon"><i class="bi bi-robot"></i></div>
+      <h4 class="fw-bold">New conversation started!</h4>
+      <p class="text-muted">What would you like to learn today?</p>
+    </div>
+  `;
+}
+
+function addSessionToSidebar(id, title, prepend=false) {
+  const list = document.getElementById('chatSessionsList');
+  const el = document.createElement('div');
+  el.className = 'chat-session-item active';
+  el.id = 'session-item-' + id;
+  el.onclick = () => loadSession(id);
+  el.innerHTML = `<div class="csi-title">${title}</div><div class="csi-meta">Just now</div>`;
+  document.querySelectorAll('.chat-session-item').forEach(s => s.classList.remove('active'));
+  if (prepend) list.prepend(el); else list.appendChild(el);
+}
+
+function loadSession(id) {
+  window.location.href = '/tutor/session/' + id;
+}
+
+// Render markdown to HTML (simple)
+function renderMarkdown(text) {
+  return text
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/```(\w+)?\n([\s\S]*?)```/g, (_, lang, code) =>
+      `<pre><code class="language-${lang||'text'}">${code.trim()}</code></pre>`)
+    .replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/^### (.+)$/gm, '<h6 class="mt-3 mb-1 fw-bold">$1</h6>')
+    .replace(/^## (.+)$/gm, '<h5 class="mt-3 mb-2 fw-bold">$1</h5>')
+    .replace(/^# (.+)$/gm, '<h4 class="mt-3 mb-2 fw-bold">$1</h4>')
+    .replace(/^\- (.+)$/gm, '<li>$1</li>')
+    .replace(/(<li>.*<\/li>)/s, '<ul class="ps-3">$1</ul>')
+    .replace(/\n{2,}/g, '</p><p>')
+    .replace(/\n/g, '<br/>')
+    .replace(/^(.+)$/, '<p>$1</p>');
+}
+
+// Scroll to bottom on load
+document.addEventListener('DOMContentLoaded', scrollToBottom);
+</script>
+{% endblock %}

@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="{{ current_user.theme_preference if current_user.is_authenticated else 'dark' }}">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="description" content="LearnMate AI – Your Personalized AI Learning & Career Coach"/>
+  <title>{% block title %}LearnMate AI{% endblock %} | LearnMate AI</title>
+
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <!-- Bootstrap Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet"/>
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <!-- Highlight.js -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" id="hljs-theme"/>
+  <!-- App CSS -->
+  <link href="{{ url_for('static', filename='css/main.css') }}" rel="stylesheet"/>
+  {% block head_extra %}{% endblock %}
+</head>
+<body>
+
+<!-- ======================================================= -->
+<!-- TOAST CONTAINER                                          -->
+<!-- ======================================================= -->
+<div class="toast-container position-fixed top-0 end-0 p-3" style="z-index:9999">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+    <div class="toast align-items-center text-bg-{{ 'danger' if category == 'error' else category }} border-0 show"
+         role="alert" aria-live="assertive" data-bs-autohide="true" data-bs-delay="5000">
+      <div class="d-flex">
+        <div class="toast-body fw-semibold">
+          <i class="bi bi-{{ 'check-circle' if category == 'success' else 'exclamation-triangle' if category in ('warning','danger') else 'info-circle' }} me-2"></i>
+          {{ message }}
+        </div>
+        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+      </div>
+    </div>
+    {% endfor %}
+  {% endwith %}
+</div>
+
+{% if current_user.is_authenticated %}
+<!-- ======================================================= -->
+<!-- SIDEBAR                                                  -->
+<!-- ======================================================= -->
+<div class="sidebar" id="sidebar">
+  <div class="sidebar-brand">
+    <div class="brand-icon">
+      <i class="bi bi-mortarboard-fill"></i>
+    </div>
+    <div class="brand-text">
+      <span class="brand-name">LearnMate</span>
+      <span class="brand-tagline">AI Coach</span>
+    </div>
+  </div>
+
+  <div class="sidebar-user">
+    <div class="user-avatar">{{ current_user.get_initials() }}</div>
+    <div class="user-info">
+      <div class="user-name">{{ current_user.get_display_name()|truncate(18) }}</div>
+      <div class="user-goal">{{ current_user.career_goal|truncate(22) if current_user.career_goal else 'Set your goal →' }}</div>
+    </div>
+  </div>
+
+  <nav class="sidebar-nav">
+    <div class="nav-section-label">Main</div>
+    <a href="{{ url_for('dashboard.index') }}" class="nav-item {% if request.endpoint == 'dashboard.index' %}active{% endif %}">
+      <i class="bi bi-grid-1x2-fill"></i>
+      <span>Dashboard</span>
+    </a>
+    <a href="{{ url_for('tutor.index') }}" class="nav-item {% if request.blueprint == 'tutor' %}active{% endif %}">
+      <i class="bi bi-robot"></i>
+      <span>AI Tutor</span>
+      <span class="nav-badge">AI</span>
+    </a>
+    <a href="{{ url_for('roadmap.index') }}" class="nav-item {% if request.blueprint == 'roadmap' %}active{% endif %}">
+      <i class="bi bi-map-fill"></i>
+      <span>Roadmap</span>
+    </a>
+
+    <div class="nav-section-label">Learn</div>
+    <a href="{{ url_for('quiz.index') }}" class="nav-item {% if request.endpoint == 'quiz.index' %}active{% endif %}">
+      <i class="bi bi-patch-question-fill"></i>
+      <span>Skill Quiz</span>
+    </a>
+    <a href="{{ url_for('progress.index') }}" class="nav-item {% if request.blueprint == 'progress' %}active{% endif %}">
+      <i class="bi bi-bar-chart-line-fill"></i>
+      <span>Progress</span>
+    </a>
+    <a href="{{ url_for('resources.index') }}" class="nav-item {% if request.blueprint == 'resources' %}active{% endif %}">
+      <i class="bi bi-collection-fill"></i>
+      <span>Resources</span>
+    </a>
+
+    <div class="nav-section-label">History</div>
+    <a href="{{ url_for('quiz.history') }}" class="nav-item {% if request.endpoint == 'quiz.history' %}active{% endif %}">
+      <i class="bi bi-clock-history"></i>
+      <span>Quiz History</span>
+    </a>
+
+    <div class="nav-section-label">Account</div>
+    <a href="{{ url_for('auth.profile') }}" class="nav-item {% if request.endpoint == 'auth.profile' %}active{% endif %}">
+      <i class="bi bi-person-circle"></i>
+      <span>Profile</span>
+    </a>
+    <a href="{{ url_for('auth.logout') }}" class="nav-item nav-item-danger">
+      <i class="bi bi-box-arrow-right"></i>
+      <span>Logout</span>
+    </a>
+  </nav>
+
+  <div class="sidebar-footer">
+    <button class="theme-toggle" id="themeToggle" title="Toggle theme">
+      <i class="bi bi-moon-stars-fill" id="themeIcon"></i>
+      <span id="themeLabel">Dark Mode</span>
+    </button>
+  </div>
+</div>
+
+<!-- ======================================================= -->
+<!-- MOBILE OVERLAY                                           -->
+<!-- ======================================================= -->
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
+
+<!-- ======================================================= -->
+<!-- MAIN CONTENT                                             -->
+<!-- ======================================================= -->
+<div class="main-wrapper" id="mainWrapper">
+  <!-- Top Nav -->
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()">
+        <i class="bi bi-list"></i>
+      </button>
+      <div class="topbar-breadcrumb">
+        <span class="breadcrumb-page">{% block page_title %}Dashboard{% endblock %}</span>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <div class="topbar-actions">
+        <button class="topbar-btn" onclick="toggleTheme()" title="Toggle Theme">
+          <i class="bi bi-circle-half" id="topThemeIcon"></i>
+        </button>
+        <a href="{{ url_for('quiz.index') }}" class="topbar-btn" title="Take a Quiz">
+          <i class="bi bi-lightning-fill"></i>
+        </a>
+        <div class="topbar-avatar" onclick="window.location='{{ url_for('auth.profile') }}'">
+          {{ current_user.get_initials() }}
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Page Content -->
+  <main class="page-content">
+    {% block content %}{% endblock %}
+  </main>
+</div>
+
+{% else %}
+<!-- Public layout (standalone auth pages that extend base) -->
+<main>{% block auth_content %}{% endblock %}</main>
+{% endif %}
+
+<!-- ======================================================= -->
+<!-- LOADING OVERLAY                                          -->
+<!-- ======================================================= -->
+<div class="loading-overlay" id="loadingOverlay" style="display:none">
+  <div class="loading-spinner">
+    <div class="spinner-ring"></div>
+    <div class="loading-text" id="loadingText">LearnMate AI is thinking...</div>
+  </div>
+</div>
+
+<!-- Scripts -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+{% block scripts %}{% endblock %}
+
+<script>
+// Initialize toasts
+document.querySelectorAll('.toast').forEach(t => new bootstrap.Toast(t, {autohide: true, delay: 5000}).show());
+// Initialize theme
+initTheme();
+// Initialize highlight.js
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('pre code').forEach(b => hljs.highlightElement(b));
+});
+</script>
+</body>
+</html>

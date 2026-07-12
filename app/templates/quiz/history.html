@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Quiz History{% endblock %}
+{% block page_title %}Quiz History{% endblock %}
+{% block content %}
+
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h3 class="fw-bold mb-0">Quiz History</h3>
+    <p class="text-muted">Your complete quiz record — {{ sessions.total }} attempts</p>
+  </div>
+  <a href="{{ url_for('quiz.index') }}" class="btn btn-gradient">
+    <i class="bi bi-lightning me-2"></i>New Quiz
+  </a>
+</div>
+
+{% if sessions.items %}
+<div class="glass-card overflow-hidden">
+  <div class="table-responsive">
+    <table class="table table-premium mb-0">
+      <thead>
+        <tr>
+          <th>Topic</th>
+          <th>Difficulty</th>
+          <th>Score</th>
+          <th>Correct</th>
+          <th>Time</th>
+          <th>Date</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in sessions.items %}
+        <tr>
+          <td>
+            <div class="fw-semibold">{{ s.topic }}</div>
+          </td>
+          <td>
+            <span class="badge badge-{{ s.difficulty }}">{{ s.difficulty.capitalize() }}</span>
+          </td>
+          <td>
+            <div class="d-flex align-items-center gap-2">
+              <div class="progress" style="width:60px; height:6px">
+                <div class="progress-bar {{ 'bg-success' if s.score >= 75 else 'bg-warning' if s.score >= 60 else 'bg-danger' }}"
+                     style="width:{{ s.score }}%"></div>
+              </div>
+              <span class="fw-bold {{ 'text-success' if s.score >= 75 else 'text-warning' if s.score >= 60 else 'text-danger' }}">
+                {{ s.score }}%
+              </span>
+            </div>
+          </td>
+          <td>{{ s.correct_count }}/{{ s.total_questions }}</td>
+          <td>
+            {% if s.time_taken_seconds %}
+              {{ (s.time_taken_seconds // 60) }}m {{ s.time_taken_seconds % 60 }}s
+            {% else %}—{% endif %}
+          </td>
+          <td class="text-muted small">{{ s.created_at.strftime('%b %d, %Y %H:%M') }}</td>
+          <td>
+            <a href="{{ url_for('quiz.session_detail', session_id=s.id) }}"
+               class="btn btn-sm btn-outline-secondary">Review</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Pagination -->
+{% if sessions.pages > 1 %}
+<nav class="mt-4">
+  <ul class="pagination justify-content-center">
+    {% if sessions.has_prev %}
+    <li class="page-item">
+      <a class="page-link" href="{{ url_for('quiz.history', page=sessions.prev_num) }}">Previous</a>
+    </li>
+    {% endif %}
+    {% for p in sessions.iter_pages() %}
+      {% if p %}
+      <li class="page-item {{ 'active' if p == sessions.page }}">
+        <a class="page-link" href="{{ url_for('quiz.history', page=p) }}">{{ p }}</a>
+      </li>
+      {% else %}
+      <li class="page-item disabled"><span class="page-link">…</span></li>
+      {% endif %}
+    {% endfor %}
+    {% if sessions.has_next %}
+    <li class="page-item">
+      <a class="page-link" href="{{ url_for('quiz.history', page=sessions.next_num) }}">Next</a>
+    </li>
+    {% endif %}
+  </ul>
+</nav>
+{% endif %}
+
+{% else %}
+<div class="empty-state glass-card p-5 text-center">
+  <i class="bi bi-patch-question display-3 text-muted mb-3"></i>
+  <h4>No Quiz History Yet</h4>
+  <p class="text-muted mb-4">Take your first AI-powered quiz to see results here.</p>
+  <a href="{{ url_for('quiz.index') }}" class="btn btn-gradient">
+    <i class="bi bi-lightning me-2"></i>Take First Quiz
+  </a>
+</div>
+{% endif %}
+{% endblock %}

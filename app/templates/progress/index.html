@@ -1,0 +1,334 @@
+{% extends "base.html" %}
+{% block title %}Progress Tracker{% endblock %}
+{% block page_title %}Progress Tracker{% endblock %}
+{% block content %}
+
+<!-- Stats Row -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="stat-card glass-card">
+      <div class="stat-card-icon bg-gradient-blue"><i class="bi bi-clock-fill"></i></div>
+      <div class="stat-card-body">
+        <div class="stat-card-value">{{ total_study_mins }}</div>
+        <div class="stat-card-label">Total Minutes</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card glass-card">
+      <div class="stat-card-icon bg-gradient-green"><i class="bi bi-check2-circle"></i></div>
+      <div class="stat-card-body">
+        <div class="stat-card-value">{{ completed }}</div>
+        <div class="stat-card-label">Topics Done</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card glass-card">
+      <div class="stat-card-icon bg-gradient-orange"><i class="bi bi-journal-text"></i></div>
+      <div class="stat-card-body">
+        <div class="stat-card-value">{{ logs|length }}</div>
+        <div class="stat-card-label">Topics Tracked</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card glass-card">
+      <div class="stat-card-icon bg-gradient-purple"><i class="bi bi-stopwatch-fill"></i></div>
+      <div class="stat-card-body">
+        <div class="stat-card-value">{{ (total_study_mins // 60) }}</div>
+        <div class="stat-card-label">Hours Studied</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4">
+  <!-- Study Timer -->
+  <div class="col-lg-5">
+    <div class="glass-card p-4 mb-4">
+      <h5 class="fw-bold mb-4">
+        <i class="bi bi-stopwatch-fill text-primary me-2"></i>Study Timer (Pomodoro)
+      </h5>
+      <div class="timer-display-area">
+        <div class="timer-circle">
+          <svg viewBox="0 0 200 200" class="timer-svg">
+            <circle cx="100" cy="100" r="88" fill="none" stroke="rgba(139,92,246,0.15)" stroke-width="12"/>
+            <circle id="timerRing" cx="100" cy="100" r="88" fill="none" stroke="#8b5cf6" stroke-width="12"
+                    stroke-linecap="round" stroke-dasharray="553" stroke-dashoffset="0"
+                    transform="rotate(-90 100 100)" style="transition: stroke-dashoffset 1s linear"/>
+          </svg>
+          <div class="timer-time-display" id="timerDisplay">25:00</div>
+        </div>
+      </div>
+      <div class="timer-topic-input mb-3 mt-3">
+        <div class="input-group-premium">
+          <i class="bi bi-book input-icon"></i>
+          <input type="text" id="timerTopic" class="form-control-premium"
+                 placeholder="What are you studying?"/>
+        </div>
+      </div>
+      <div class="timer-modes mb-3">
+        <button class="timer-mode-btn active" onclick="setTimerMode(25, this)">25 min</button>
+        <button class="timer-mode-btn" onclick="setTimerMode(50, this)">50 min</button>
+        <button class="timer-mode-btn" onclick="setTimerMode(5, this)">5 min break</button>
+        <button class="timer-mode-btn" onclick="setTimerMode(15, this)">15 min break</button>
+      </div>
+      <div class="timer-controls d-flex gap-2 justify-content-center">
+        <button class="btn btn-gradient px-4" id="timerStartBtn" onclick="startTimer()">
+          <i class="bi bi-play-fill me-2"></i>Start
+        </button>
+        <button class="btn btn-outline-secondary px-3" onclick="pauseTimer()">
+          <i class="bi bi-pause-fill"></i>
+        </button>
+        <button class="btn btn-outline-secondary px-3" onclick="resetTimer()">
+          <i class="bi bi-stop-fill"></i>
+        </button>
+      </div>
+      <div class="timer-session-count mt-3 text-center text-muted small" id="sessionCount">
+        Sessions today: <span id="sessionTodayCount">0</span>
+      </div>
+    </div>
+
+    <!-- Study Chart -->
+    <div class="glass-card p-4">
+      <h5 class="fw-bold mb-3">
+        <i class="bi bi-calendar-week text-info me-2"></i>Weekly Study Activity
+      </h5>
+      <canvas id="weeklyStudyChart" height="150"></canvas>
+    </div>
+  </div>
+
+  <!-- Right Column: Progress Logs -->
+  <div class="col-lg-7">
+    <!-- Add Progress Log -->
+    <div class="glass-card p-4 mb-4">
+      <h5 class="fw-bold mb-3">
+        <i class="bi bi-plus-circle-fill text-success me-2"></i>Track Progress
+      </h5>
+      <div class="row g-2">
+        <div class="col-md-5">
+          <div class="input-group-premium">
+            <i class="bi bi-book input-icon"></i>
+            <input type="text" id="logTopic" class="form-control-premium" placeholder="Topic name..."/>
+          </div>
+        </div>
+        <div class="col-md-3">
+          <select id="logStatus" class="form-control-premium">
+            <option value="in_progress">In Progress</option>
+            <option value="completed">Completed</option>
+            <option value="paused">Paused</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <div class="input-group-premium">
+            <input type="number" id="logProgress" class="form-control-premium"
+                   placeholder="%" min="0" max="100" value="50"/>
+          </div>
+        </div>
+        <div class="col-md-2">
+          <button class="btn btn-gradient w-100" onclick="addProgressLog()">Add</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Progress Logs List -->
+    <div class="glass-card p-4">
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <h5 class="fw-bold mb-0">
+          <i class="bi bi-list-check text-warning me-2"></i>Progress Logs
+        </h5>
+        <span class="text-muted small">{{ logs|length }} topics</span>
+      </div>
+      <div id="progressLogsList">
+        {% if logs %}
+          {% for log in logs %}
+          <div class="progress-log-item" id="log-{{ log.id }}">
+            <div class="d-flex align-items-center justify-content-between mb-1">
+              <div class="d-flex align-items-center gap-2">
+                <span class="fw-semibold">{{ log.topic }}</span>
+                <span class="badge badge-{{ 'success' if log.status == 'completed' else 'warning' if log.status == 'in_progress' else 'secondary' }}">
+                  {{ log.status.replace('_',' ').capitalize() }}
+                </span>
+              </div>
+              <div class="d-flex align-items-center gap-2">
+                <span class="text-muted small">{{ log.progress_percent }}%</span>
+                <button class="btn-icon-sm text-danger" onclick="deleteProgressLog({{ log.id }})">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </div>
+            </div>
+            <div class="progress mb-2" style="height:6px">
+              <div class="progress-bar {{ 'bg-success' if log.status == 'completed' else 'bg-warning' if log.status == 'in_progress' else 'bg-secondary' }}"
+                   style="width:{{ log.progress_percent }}%"></div>
+            </div>
+            {% if log.notes %}
+            <div class="text-muted small">{{ log.notes }}</div>
+            {% endif %}
+          </div>
+          {% endfor %}
+        {% else %}
+          <div class="text-center text-muted py-4" id="emptyLogs">
+            <i class="bi bi-list-check d-block mb-2 fs-3"></i>
+            No topics tracked yet. Add your first topic above!
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const CSRF_TOKEN = "{{ csrf_token() }}";
+const studyChartData = {{ study_chart|safe }};
+let timerMinutes = 25, timerSeconds = 0, totalSeconds = 25*60;
+let timerInterval = null, timerRunning = false, sessionType = 'focus';
+let sessionsTodayCount = 0;
+
+// Weekly Chart
+const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+const gc = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)';
+const tc = isDark ? '#94a3b8' : '#64748b';
+new Chart(document.getElementById('weeklyStudyChart'), {
+  type: 'bar',
+  data: {
+    labels: studyChartData.labels,
+    datasets: [{
+      label: 'Minutes',
+      data: studyChartData.data,
+      backgroundColor: 'rgba(139,92,246,0.7)',
+      borderColor: '#8b5cf6', borderWidth:2, borderRadius:8
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: true,
+    plugins: { legend: {display:false} },
+    scales: {
+      x: { grid:{color:gc}, ticks:{color:tc} },
+      y: { grid:{color:gc}, ticks:{color:tc}, beginAtZero:true }
+    }
+  }
+});
+
+// Timer Logic
+function setTimerMode(minutes, btn) {
+  document.querySelectorAll('.timer-mode-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  sessionType = minutes <= 15 ? 'break' : 'focus';
+  timerMinutes = minutes;
+  timerSeconds = 0;
+  totalSeconds = minutes * 60;
+  resetTimer(false);
+  document.getElementById('timerDisplay').textContent = String(minutes).padStart(2,'0') + ':00';
+  const ring = document.getElementById('timerRing');
+  const circ = 2 * Math.PI * 88;
+  ring.style.strokeDasharray = circ;
+  ring.style.strokeDashoffset = 0;
+}
+
+function startTimer() {
+  if (timerRunning) return;
+  timerRunning = true;
+  document.getElementById('timerStartBtn').innerHTML = '<i class="bi bi-play-fill me-2"></i>Running';
+  timerInterval = setInterval(tickTimer, 1000);
+}
+
+function pauseTimer() {
+  clearInterval(timerInterval);
+  timerRunning = false;
+  document.getElementById('timerStartBtn').innerHTML = '<i class="bi bi-play-fill me-2"></i>Resume';
+}
+
+function resetTimer(updateDisplay=true) {
+  clearInterval(timerInterval);
+  timerRunning = false;
+  timerMinutes = parseInt(document.querySelector('.timer-mode-btn.active')?.textContent || '25');
+  timerSeconds = 0;
+  if (updateDisplay) {
+    document.getElementById('timerDisplay').textContent = String(timerMinutes).padStart(2,'0') + ':00';
+    document.getElementById('timerRing').style.strokeDashoffset = 0;
+  }
+  document.getElementById('timerStartBtn').innerHTML = '<i class="bi bi-play-fill me-2"></i>Start';
+}
+
+function tickTimer() {
+  const remaining = timerMinutes * 60 + timerSeconds - 1;
+  if (remaining < 0) {
+    clearInterval(timerInterval);
+    timerRunning = false;
+    const elapsed = totalSeconds;
+    onTimerComplete(elapsed);
+    return;
+  }
+  timerMinutes = Math.floor(remaining / 60);
+  timerSeconds = remaining % 60;
+  document.getElementById('timerDisplay').textContent =
+    String(timerMinutes).padStart(2,'0') + ':' + String(timerSeconds).padStart(2,'0');
+
+  // Update ring
+  const elapsed = totalSeconds - remaining;
+  const circ = 2 * Math.PI * 88;
+  const offset = circ - (elapsed / totalSeconds) * circ;
+  document.getElementById('timerRing').style.strokeDashoffset = offset;
+}
+
+async function onTimerComplete(durationSeconds) {
+  document.getElementById('timerDisplay').textContent = '00:00';
+  const topic = document.getElementById('timerTopic').value.trim() || 'Study Session';
+  const durationMins = Math.round(durationSeconds / 60);
+
+  try {
+    await fetch('/progress/api/study-session', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','X-CSRFToken':CSRF_TOKEN},
+      body: JSON.stringify({ topic, duration_minutes: durationMins, session_type: sessionType })
+    });
+    sessionsTodayCount++;
+    document.getElementById('sessionTodayCount').textContent = sessionsTodayCount;
+    showToast(`✅ ${durationMins}min session saved! Great work!`, 'success');
+  } catch(e) { showToast('Session save failed.', 'warning'); }
+
+  // Browser notification
+  if (Notification.permission === 'granted') {
+    new Notification('LearnMate AI', { body: `⏰ ${durationMins}-minute session complete! Take a break.` });
+  }
+  resetTimer(true);
+}
+
+// Request notification permission
+if (Notification.permission === 'default') Notification.requestPermission();
+
+async function addProgressLog() {
+  const topic = document.getElementById('logTopic').value.trim();
+  const status = document.getElementById('logStatus').value;
+  const progress = parseInt(document.getElementById('logProgress').value) || 0;
+  if (!topic) { showToast('Enter a topic name.', 'warning'); return; }
+
+  try {
+    const res = await fetch('/progress/api/log', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','X-CSRFToken':CSRF_TOKEN},
+      body: JSON.stringify({ topic, status, progress_percent: progress })
+    });
+    if (res.ok) { showToast('Progress saved!', 'success'); setTimeout(() => location.reload(), 500); }
+    else { const d = await res.json(); showToast(d.error || 'Save failed.', 'danger'); }
+  } catch(e) { showToast('Network error.', 'danger'); }
+}
+
+async function deleteProgressLog(id) {
+  if (!confirm('Delete this progress log?')) return;
+  try {
+    const res = await fetch(`/progress/api/log/${id}`, {
+      method: 'DELETE',
+      headers: {'X-CSRFToken':CSRF_TOKEN}
+    });
+    if (res.ok) {
+      document.getElementById('log-' + id)?.remove();
+      showToast('Deleted.', 'success');
+    }
+  } catch(e) { showToast('Delete failed.', 'danger'); }
+}
+</script>
+{% endblock %}

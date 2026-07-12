@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% block title %}Setup Profile{% endblock %}
+{% block page_title %}Welcome Setup{% endblock %}
+{% block content %}
+<div class="onboarding-container">
+  <div class="onboarding-header text-center mb-5">
+    <div class="onboarding-icon mb-3">
+      <i class="bi bi-mortarboard-fill"></i>
+    </div>
+    <h1 class="fw-bold gradient-text">Let's Personalize Your Journey</h1>
+    <p class="text-muted fs-5">Tell LearnMate AI about yourself so we can build your perfect learning roadmap.</p>
+  </div>
+
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+      <form method="POST" action="{{ url_for('auth.onboarding') }}" class="glass-card p-5">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+
+        <!-- Career Goal -->
+        <div class="mb-4">
+          <label class="form-label fw-semibold fs-5 mb-3">
+            <i class="bi bi-bullseye text-primary me-2"></i>What is your Career Goal?
+          </label>
+          <div class="career-goals-grid mb-3" id="careerGoalsGrid">
+            {% set goals = [
+              ('Data Scientist', 'bi-bar-chart-fill', 'purple'),
+              ('Software Engineer', 'bi-code-slash', 'blue'),
+              ('Full Stack Developer', 'bi-layers-fill', 'green'),
+              ('Machine Learning Engineer', 'bi-cpu-fill', 'orange'),
+              ('DevOps Engineer', 'bi-gear-fill', 'teal'),
+              ('Cloud Architect', 'bi-cloud-fill', 'sky'),
+              ('Cybersecurity Analyst', 'bi-shield-lock-fill', 'red'),
+              ('Data Engineer', 'bi-database-fill', 'indigo'),
+              ('AI/ML Researcher', 'bi-robot', 'pink'),
+              ('Frontend Developer', 'bi-palette-fill', 'yellow'),
+              ('Backend Developer', 'bi-server', 'gray'),
+              ('Mobile Developer', 'bi-phone-fill', 'emerald'),
+            ] %}
+            {% for goal, icon, color in goals %}
+            <div class="career-goal-card" onclick="selectGoal(this, '{{ goal }}')" data-goal="{{ goal }}">
+              <i class="bi {{ icon }}"></i>
+              <span>{{ goal }}</span>
+            </div>
+            {% endfor %}
+          </div>
+          <div class="input-group-premium mt-2">
+            <i class="bi bi-pencil input-icon"></i>
+            <input type="text" name="career_goal" id="careerGoalInput"
+                   class="form-control-premium" placeholder="Or type a custom career goal..."
+                   required/>
+          </div>
+        </div>
+
+        <!-- Skill Level -->
+        <div class="mb-4">
+          <label class="form-label fw-semibold fs-5 mb-3">
+            <i class="bi bi-graph-up text-success me-2"></i>Your Current Skill Level
+          </label>
+          <div class="skill-levels-row">
+            <label class="skill-level-option">
+              <input type="radio" name="skill_level" value="beginner" required/>
+              <div class="skill-level-card">
+                <i class="bi bi-seedling-fill"></i>
+                <span class="fw-semibold">Beginner</span>
+                <small>New to the field</small>
+              </div>
+            </label>
+            <label class="skill-level-option">
+              <input type="radio" name="skill_level" value="intermediate"/>
+              <div class="skill-level-card">
+                <i class="bi bi-tree-fill"></i>
+                <span class="fw-semibold">Intermediate</span>
+                <small>Some experience</small>
+              </div>
+            </label>
+            <label class="skill-level-option">
+              <input type="radio" name="skill_level" value="advanced"/>
+              <div class="skill-level-card">
+                <i class="bi bi-lightning-fill"></i>
+                <span class="fw-semibold">Advanced</span>
+                <small>Solid foundation</small>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <!-- Study Hours -->
+        <div class="mb-4">
+          <label class="form-label fw-semibold fs-5 mb-2">
+            <i class="bi bi-clock-fill text-warning me-2"></i>
+            Available Study Time: <span id="hoursDisplay" class="gradient-text">2 hours/day</span>
+          </label>
+          <input type="range" name="study_hours" id="studyHoursSlider"
+                 class="form-range study-slider" min="0.5" max="10" step="0.5" value="2"
+                 oninput="document.getElementById('hoursDisplay').textContent = this.value + ' hours/day'"/>
+          <div class="d-flex justify-content-between small text-muted mt-1">
+            <span>30 min</span><span>5 hours</span><span>10 hours</span>
+          </div>
+        </div>
+
+        <!-- Interests -->
+        <div class="mb-4">
+          <label class="form-label fw-semibold fs-5 mb-2">
+            <i class="bi bi-heart-fill text-danger me-2"></i>Your Tech Interests
+          </label>
+          <div class="input-group-premium">
+            <i class="bi bi-tags input-icon"></i>
+            <input type="text" name="interests" class="form-control-premium"
+                   placeholder="e.g., AI, web apps, data analysis, system design..."/>
+          </div>
+        </div>
+
+        <!-- Learning Preferences -->
+        <div class="mb-5">
+          <label class="form-label fw-semibold fs-5 mb-3">
+            <i class="bi bi-sliders text-info me-2"></i>Learning Preferences
+          </label>
+          <div class="preferences-grid">
+            {% for pref in ['Visual Learning', 'Hands-on Projects', 'Reading Documentation', 'Video Tutorials', 'Practice Problems', 'Peer Learning'] %}
+            <label class="pref-chip">
+              <input type="checkbox" name="learning_preferences" value="{{ pref }}"/>
+              <span>{{ pref }}</span>
+            </label>
+            {% endfor %}
+          </div>
+        </div>
+
+        <button type="submit" class="btn-auth-submit w-100" id="onboardingSubmit">
+          <span id="onboardingBtnText">
+            <i class="bi bi-rocket-takeoff-fill me-2"></i>Generate My Personalized Roadmap
+          </span>
+          <span id="onboardingBtnLoading" style="display:none">
+            <span class="spinner-border spinner-border-sm me-2"></span>Generating your roadmap with AI...
+          </span>
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+function selectGoal(el, goal) {
+  document.querySelectorAll('.career-goal-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  document.getElementById('careerGoalInput').value = goal;
+}
+document.querySelector('form').addEventListener('submit', function() {
+  document.getElementById('onboardingBtnText').style.display = 'none';
+  document.getElementById('onboardingBtnLoading').style.display = 'inline-flex';
+  document.getElementById('onboardingSubmit').disabled = true;
+});
+</script>
+{% endblock %}

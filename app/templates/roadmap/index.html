@@ -1,0 +1,388 @@
+{% extends "base.html" %}
+{% block title %}Learning Roadmap{% endblock %}
+{% block page_title %}Learning Roadmap{% endblock %}
+{% block content %}
+
+<!-- Roadmap Header -->
+<div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-3">
+  <div>
+    <h3 class="fw-bold mb-0">
+      {% if active_roadmap %}
+        <span class="gradient-text">{{ active_roadmap.career_goal }}</span> Roadmap
+      {% else %}
+        Your Learning Roadmap
+      {% endif %}
+    </h3>
+    {% if active_roadmap %}
+    <p class="text-muted mb-0">{{ active_roadmap.skill_level.capitalize() }} level •
+      Generated {{ active_roadmap.created_at.strftime('%b %d, %Y') }}</p>
+    {% endif %}
+  </div>
+  <button class="btn btn-gradient" data-bs-toggle="modal" data-bs-target="#generateModal">
+    <i class="bi bi-magic me-2"></i>
+    {{ 'Regenerate Roadmap' if active_roadmap else 'Generate My Roadmap' }}
+  </button>
+</div>
+
+{% if active_roadmap and roadmap_data %}
+
+<!-- Overview Card -->
+<div class="glass-card p-4 mb-4">
+  <div class="row align-items-center">
+    <div class="col-md-8">
+      <p class="mb-0 text-muted">{{ roadmap_data.get('overview', '') }}</p>
+    </div>
+    <div class="col-md-4 text-md-end mt-3 mt-md-0">
+      <div class="roadmap-duration-badge">
+        <i class="bi bi-calendar3 me-2"></i>
+        {{ roadmap_data.get('total_duration_weeks', '?') }} weeks total
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Progress Overview -->
+<div class="glass-card p-4 mb-4">
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <h6 class="fw-bold mb-0">Overall Progress</h6>
+    <span class="text-muted small">
+      {{ milestones|selectattr('status','equalto','completed')|list|length }}/{{ milestones|length }} milestones
+    </span>
+  </div>
+  {% set completed_count = milestones|selectattr('status','equalto','completed')|list|length %}
+  {% set total_count = milestones|length %}
+  {% set pct = ((completed_count / total_count * 100)|round|int) if total_count > 0 else 0 %}
+  <div class="progress mb-2" style="height:14px; border-radius:999px;">
+    <div class="progress-bar progress-bar-animated bg-gradient-purple"
+         style="width:{{ pct }}%; border-radius:999px;" id="overallProgress">{{ pct }}%</div>
+  </div>
+  <div class="d-flex gap-4 small text-muted">
+    <span><i class="bi bi-check-circle-fill text-success me-1"></i>{{ completed_count }} done</span>
+    <span><i class="bi bi-arrow-right-circle-fill text-warning me-1"></i>
+      {{ milestones|selectattr('status','equalto','in_progress')|list|length }} in progress</span>
+    <span><i class="bi bi-circle text-muted me-1"></i>
+      {{ milestones|selectattr('status','equalto','pending')|list|length }} pending</span>
+  </div>
+</div>
+
+<!-- Timeline / Phases -->
+<div class="roadmap-timeline" id="roadmapTimeline">
+  {% for phase_num, phase_milestones in phases %}
+    {% set phase_info = roadmap_data.get('phases', [])|selectattr('phase_number','equalto', phase_num)|list %}
+    {% set phase_name = phase_info[0].get('phase_name', 'Phase ' ~ phase_num) if phase_info else 'Phase ' ~ phase_num %}
+    {% set phase_desc = phase_info[0].get('description', '') if phase_info else '' %}
+    {% set phase_dur = phase_info[0].get('duration_weeks', '?') if phase_info else '?' %}
+
+    <div class="timeline-phase mb-5" data-phase="{{ phase_num }}">
+      <div class="timeline-phase-header">
+        <div class="phase-number">{{ phase_num }}</div>
+        <div class="phase-info">
+          <h5 class="fw-bold mb-1">{{ phase_name }}</h5>
+          <p class="text-muted small mb-0">{{ phase_desc }} • ~{{ phase_dur }} weeks</p>
+        </div>
+        <div class="phase-status ms-auto">
+          {% set done = phase_milestones|selectattr('status','equalto','completed')|list|length %}
+          {% set total = phase_milestones|length %}
+          <span class="badge {{ 'badge-success' if done == total and total > 0 else 'badge-info' if done > 0 else 'badge-secondary' }}">
+            {{ done }}/{{ total }}
+          </span>
+        </div>
+      </div>
+
+      <div class="timeline-milestones">
+        {% for milestone in phase_milestones %}
+        <div class="milestone-card glass-card p-3 milestone-{{ milestone.status }}"
+             id="milestone-{{ milestone.id }}">
+          <div class="d-flex align-items-start gap-3">
+            <div class="milestone-status-btn" onclick="toggleMilestone({{ milestone.id }}, '{{ milestone.status }}')"
+                 title="Click to update status">
+              {% if milestone.status == 'completed' %}
+                <i class="bi bi-check-circle-fill text-success fs-5"></i>
+              {% elif milestone.status == 'in_progress' %}
+                <i class="bi bi-arrow-right-circle-fill text-warning fs-5"></i>
+              {% else %}
+                <i class="bi bi-circle text-muted fs-5"></i>
+              {% endif %}
+            </div>
+            <div class="flex-grow-1">
+              <div class="d-flex align-items-center gap-2 mb-1">
+                <span class="fw-semibold {{ 'text-decoration-line-through text-muted' if milestone.status == 'completed' else '' }}">
+                  {{ milestone.title }}
+                </span>
+                <span class="badge badge-sm badge-{{ 'success' if milestone.status == 'completed' else 'warning' if milestone.status == 'in_progress' else 'secondary' }}">
+                  {{ milestone.status.replace('_', ' ').capitalize() }}
+                </span>
+              </div>
+              {% if milestone.description %}
+              <p class="text-muted small mb-2">{{ milestone.description }}</p>
+              {% endif %}
+              <div class="d-flex align-items-center gap-3 small text-muted">
+                {% if milestone.estimated_weeks %}
+                <span><i class="bi bi-clock me-1"></i>~{{ milestone.estimated_weeks }} week{{ 's' if milestone.estimated_weeks != 1 }}</span>
+                {% endif %}
+                {% set res = [] %}
+                {% if milestone.resources %}
+                  {% set res = milestone.resources|fromjson if milestone.resources else [] %}
+                {% endif %}
+                {% if res %}
+                <span><i class="bi bi-link-45deg me-1"></i>{{ res|length }} resource{{ 's' if res|length != 1 }}</span>
+                {% endif %}
+              </div>
+            </div>
+            <div class="milestone-actions dropdown">
+              <button class="btn-icon-sm" data-bs-toggle="dropdown">
+                <i class="bi bi-three-dots-vertical"></i>
+              </button>
+              <ul class="dropdown-menu dropdown-menu-end glass-dropdown">
+                <li><button class="dropdown-item" onclick="setMilestoneStatus({{ milestone.id }}, 'in_progress')">
+                  <i class="bi bi-arrow-right-circle text-warning me-2"></i>Mark In Progress
+                </button></li>
+                <li><button class="dropdown-item" onclick="setMilestoneStatus({{ milestone.id }}, 'completed')">
+                  <i class="bi bi-check-circle text-success me-2"></i>Mark Completed
+                </button></li>
+                <li><button class="dropdown-item" onclick="setMilestoneStatus({{ milestone.id }}, 'pending')">
+                  <i class="bi bi-circle text-muted me-2"></i>Reset to Pending
+                </button></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  {% endfor %}
+</div>
+
+<!-- Key Projects -->
+{% if roadmap_data.get('key_projects') %}
+<div class="glass-card p-4 mb-4">
+  <h5 class="fw-bold mb-4"><i class="bi bi-code-square text-primary me-2"></i>Key Projects</h5>
+  <div class="row g-3">
+    {% for project in roadmap_data.get('key_projects', []) %}
+    <div class="col-md-6 col-lg-4">
+      <div class="project-card">
+        <div class="project-header">
+          <span class="fw-semibold">{{ project.get('title', '') }}</span>
+          <span class="badge badge-{{ 'success' if project.get('difficulty') == 'beginner' else 'warning' if project.get('difficulty') == 'intermediate' else 'danger' }} badge-sm">
+            {{ project.get('difficulty', '').capitalize() }}
+          </span>
+        </div>
+        <p class="text-muted small mb-2">{{ project.get('description', '') }}</p>
+        {% if project.get('skills_used') %}
+        <div class="project-tags">
+          {% for skill in project.get('skills_used', [])[:4] %}
+          <span class="tech-tag">{{ skill }}</span>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Certifications -->
+{% if roadmap_data.get('certifications') %}
+<div class="glass-card p-4 mb-4">
+  <h5 class="fw-bold mb-4"><i class="bi bi-award-fill text-warning me-2"></i>Recommended Certifications</h5>
+  <div class="row g-3">
+    {% for cert in roadmap_data.get('certifications', []) %}
+    <div class="col-md-6">
+      <div class="cert-card">
+        <div class="d-flex align-items-start gap-3">
+          <div class="cert-icon"><i class="bi bi-award-fill"></i></div>
+          <div>
+            <div class="fw-semibold">{{ cert.get('name', '') }}</div>
+            <div class="text-muted small">{{ cert.get('provider', '') }}</div>
+            <div class="text-muted small mt-1">{{ cert.get('relevance', '') }}</div>
+            <div class="cert-when mt-1">
+              <i class="bi bi-clock me-1"></i>{{ cert.get('when_to_take', '') }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Interview Prep -->
+{% if roadmap_data.get('interview_prep') %}
+<div class="glass-card p-4 mb-4">
+  <h5 class="fw-bold mb-4"><i class="bi bi-person-badge-fill text-info me-2"></i>Interview Preparation</h5>
+  {% set ip = roadmap_data.get('interview_prep', {}) %}
+  <div class="row g-3">
+    <div class="col-md-4">
+      <h6 class="fw-semibold text-muted">Key Topics</h6>
+      <ul class="list-unstyled">
+        {% for t in ip.get('topics', []) %}
+        <li class="mb-1"><i class="bi bi-check2 text-success me-2"></i>{{ t }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    <div class="col-md-4">
+      <h6 class="fw-semibold text-muted">Practice Platforms</h6>
+      <ul class="list-unstyled">
+        {% for p in ip.get('practice_platforms', []) %}
+        <li class="mb-1"><i class="bi bi-laptop text-primary me-2"></i>{{ p }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    <div class="col-md-4">
+      <h6 class="fw-semibold text-muted">Pro Tips</h6>
+      <ul class="list-unstyled">
+        {% for t in ip.get('tips', []) %}
+        <li class="mb-1"><i class="bi bi-lightbulb text-warning me-2"></i>{{ t }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% else %}
+<!-- No Roadmap State -->
+<div class="empty-roadmap-state glass-card p-5 text-center">
+  <div class="empty-roadmap-icon"><i class="bi bi-map"></i></div>
+  <h4 class="fw-bold mt-3">No Roadmap Generated Yet</h4>
+  <p class="text-muted mb-4">Generate your personalized AI-powered learning roadmap.</p>
+  <button class="btn btn-gradient btn-lg" data-bs-toggle="modal" data-bs-target="#generateModal">
+    <i class="bi bi-magic me-2"></i>Generate My Roadmap
+  </button>
+</div>
+{% endif %}
+
+<!-- Generate Roadmap Modal -->
+<div class="modal fade" id="generateModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content glass-modal">
+      <div class="modal-header border-0">
+        <h5 class="modal-title fw-bold">
+          <i class="bi bi-magic me-2 text-primary"></i>Generate Personalized Roadmap
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label-premium">Career Goal</label>
+            <div class="input-group-premium">
+              <i class="bi bi-bullseye input-icon"></i>
+              <input type="text" id="genCareerGoal" class="form-control-premium"
+                     value="{{ current_user.career_goal or '' }}"
+                     placeholder="e.g., Data Scientist, Full Stack Developer..."/>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label-premium">Skill Level</label>
+            <select id="genSkillLevel" class="form-control-premium">
+              {% for level in ['beginner', 'intermediate', 'advanced'] %}
+              <option value="{{ level }}" {{ 'selected' if current_user.current_skill_level == level }}>
+                {{ level.capitalize() }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label-premium">Study Hours/Day</label>
+            <div class="input-group-premium">
+              <i class="bi bi-clock input-icon"></i>
+              <input type="number" id="genStudyHours" class="form-control-premium"
+                     value="{{ current_user.available_study_hours or 2 }}" min="0.5" max="12" step="0.5"/>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label-premium">Interests</label>
+            <div class="input-group-premium">
+              <i class="bi bi-tags input-icon"></i>
+              <input type="text" id="genInterests" class="form-control-premium"
+                     value="{{ current_user.interests or '' }}" placeholder="AI, web dev..."/>
+            </div>
+          </div>
+        </div>
+        <div id="generateError" class="alert alert-danger mt-3" style="display:none"></div>
+      </div>
+      <div class="modal-footer border-0">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-gradient px-4" id="generateBtn" onclick="generateRoadmap()">
+          <span id="genBtnText"><i class="bi bi-magic me-2"></i>Generate with AI</span>
+          <span id="genBtnLoading" style="display:none">
+            <span class="spinner-border spinner-border-sm me-2"></span>Generating...
+          </span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const CSRF_TOKEN = "{{ csrf_token() }}";
+
+async function toggleMilestone(id, currentStatus) {
+  const next = {pending:'in_progress', in_progress:'completed', completed:'pending'}[currentStatus] || 'in_progress';
+  await setMilestoneStatus(id, next);
+}
+
+async function setMilestoneStatus(id, status) {
+  try {
+    const res = await fetch(`/roadmap/api/milestone/${id}/update`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','X-CSRFToken': CSRF_TOKEN},
+      body: JSON.stringify({ status })
+    });
+    if (res.ok) location.reload();
+    else showToast('Failed to update milestone.', 'danger');
+  } catch(e) {
+    showToast('Network error.', 'danger');
+  }
+}
+
+async function generateRoadmap() {
+  const goal = document.getElementById('genCareerGoal').value.trim();
+  if (!goal) { document.getElementById('generateError').textContent='Career goal is required.'; document.getElementById('generateError').style.display='block'; return; }
+
+  document.getElementById('genBtnText').style.display = 'none';
+  document.getElementById('genBtnLoading').style.display = 'inline-flex';
+  document.getElementById('generateBtn').disabled = true;
+  document.getElementById('generateError').style.display = 'none';
+  showLoading('Generating your personalized roadmap...');
+
+  try {
+    const res = await fetch('/roadmap/generate', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','X-CSRFToken': CSRF_TOKEN},
+      body: JSON.stringify({
+        career_goal: goal,
+        skill_level: document.getElementById('genSkillLevel').value,
+        study_hours: document.getElementById('genStudyHours').value,
+        interests: document.getElementById('genInterests').value,
+      })
+    });
+    const data = await res.json();
+    hideLoading();
+    if (res.ok) {
+      showToast('Roadmap generated successfully!', 'success');
+      setTimeout(() => location.reload(), 1000);
+    } else {
+      document.getElementById('generateError').textContent = data.error || 'Generation failed.';
+      document.getElementById('generateError').style.display = 'block';
+      document.getElementById('genBtnText').style.display='inline';
+      document.getElementById('genBtnLoading').style.display='none';
+      document.getElementById('generateBtn').disabled = false;
+    }
+  } catch(e) {
+    hideLoading();
+    document.getElementById('generateError').textContent = 'Network error. Please try again.';
+    document.getElementById('generateError').style.display = 'block';
+    document.getElementById('genBtnText').style.display='inline';
+    document.getElementById('genBtnLoading').style.display='none';
+    document.getElementById('generateBtn').disabled = false;
+  }
+}
+</script>
+{% endblock %}

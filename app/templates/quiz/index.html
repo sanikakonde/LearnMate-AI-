@@ -1,0 +1,495 @@
+{% extends "base.html" %}
+{% block title %}Skill Quiz{% endblock %}
+{% block page_title %}Skill Quiz{% endblock %}
+{% block content %}
+
+<!-- Quiz Setup Panel -->
+<div id="quizSetup">
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+      <div class="glass-card p-5 text-center">
+        <div class="quiz-setup-icon mb-3">
+          <i class="bi bi-patch-question-fill"></i>
+        </div>
+        <h2 class="fw-bold mb-2">AI-Powered Skill Quiz</h2>
+        <p class="text-muted mb-5">Test your knowledge with 5 AI-generated questions.<br/>Powered by LearnMate AI.</p>
+
+        <div class="row g-4 text-start">
+          <div class="col-md-7">
+            <label class="form-label-premium">Topic / Technology</label>
+            <div class="input-group-premium mb-2">
+              <i class="bi bi-search input-icon"></i>
+              <input type="text" id="quizTopic" class="form-control-premium"
+                     placeholder="e.g., Python, Machine Learning, React, AWS..."
+                     value="{{ current_user.career_goal or '' }}"
+                     onkeydown="if(event.key==='Enter') validateAndStart()"/>
+            </div>
+            <div id="topicValidation" class="small mt-1" style="display:none"></div>
+            <div class="topic-chips mt-2">
+              {% for topic in ['Python', 'JavaScript', 'Machine Learning', 'SQL', 'React', 'Docker', 'AWS', 'DSA'] %}
+              <span class="topic-chip" onclick="document.getElementById('quizTopic').value='{{ topic }}'">{{ topic }}</span>
+              {% endfor %}
+            </div>
+          </div>
+          <div class="col-md-5">
+            <label class="form-label-premium">Difficulty Level</label>
+            <div class="difficulty-selector">
+              {% for level, desc, icon in [('beginner','Fundamentals','bi-seedling'), ('intermediate','Practical','bi-tree'), ('advanced','Interview-level','bi-lightning-fill')] %}
+              <label class="diff-option">
+                <input type="radio" name="quizDifficulty" value="{{ level }}" {{ 'checked' if level == 'intermediate' }}/>
+                <div class="diff-card">
+                  <i class="bi {{ icon }}"></i>
+                  <span class="fw-semibold">{{ level.capitalize() }}</span>
+                  <small class="text-muted">{{ desc }}</small>
+                </div>
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+
+        <button class="btn btn-gradient btn-lg mt-4 px-5" id="startQuizBtn" onclick="validateAndStart()">
+          <span id="startBtnText"><i class="bi bi-lightning-fill me-2"></i>Generate Quiz</span>
+          <span id="startBtnLoading" style="display:none">
+            <span class="spinner-border spinner-border-sm me-2"></span>Generating with AI...
+          </span>
+        </button>
+
+        <div id="quizError" class="alert alert-danger mt-3 text-start" style="display:none"></div>
+      </div>
+
+      <!-- Recent Attempts -->
+      {% if recent_sessions %}
+      <div class="glass-card p-4 mt-4">
+        <h6 class="fw-bold mb-3"><i class="bi bi-clock-history me-2 text-muted"></i>Recent Attempts</h6>
+        <div class="row g-2">
+          {% for s in recent_sessions %}
+          <div class="col-12">
+            <div class="recent-quiz-row d-flex align-items-center justify-content-between">
+              <div>
+                <strong>{{ s.topic }}</strong>
+                <span class="badge badge-{{ s.difficulty }} ms-2">{{ s.difficulty.capitalize() }}</span>
+              </div>
+              <div class="d-flex align-items-center gap-3">
+                <span class="quiz-score-pill {{ s.grade_color() }}">{{ s.score }}%</span>
+                <a href="{{ url_for('quiz.session_detail', session_id=s.id) }}"
+                   class="btn btn-sm btn-outline-secondary">Review</a>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Active Quiz Panel -->
+<div id="quizPanel" style="display:none">
+  <div class="row justify-content-center">
+    <div class="col-lg-9">
+
+      <!-- Quiz Header -->
+      <div class="glass-card p-3 mb-4">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+          <div>
+            <span class="fw-bold" id="quizTopicDisplay"></span>
+            <span class="badge ms-2" id="quizDiffDisplay"></span>
+          </div>
+          <div class="d-flex align-items-center gap-3">
+            <div class="quiz-progress-text" id="questionCounter">Question 1/5</div>
+            <div class="quiz-timer" id="quizTimer">
+              <i class="bi bi-stopwatch me-1"></i><span id="timerDisplay">00:00</span>
+            </div>
+          </div>
+        </div>
+        <div class="progress mt-2" style="height:6px">
+          <div class="progress-bar bg-gradient-purple transition-width" id="quizProgressBar" style="width:20%"></div>
+        </div>
+      </div>
+
+      <!-- Question Card -->
+      <div id="questionCard" class="glass-card p-4 p-md-5 mb-4">
+        <div class="question-number text-muted mb-3" id="questionNumber">Q1</div>
+        <div class="question-text mb-4" id="questionText"></div>
+        <div class="options-grid" id="optionsContainer"></div>
+        <div id="answerFeedback" class="mt-3" style="display:none"></div>
+      </div>
+
+      <!-- Navigation -->
+      <div class="d-flex justify-content-between align-items-center">
+        <button class="btn btn-outline-secondary" id="prevBtn" onclick="prevQuestion()" style="display:none">
+          <i class="bi bi-arrow-left me-2"></i>Previous
+        </button>
+        <div class="ms-auto">
+          <button class="btn btn-gradient px-4" id="nextBtn" onclick="nextQuestion()">
+            Next <i class="bi bi-arrow-right ms-2"></i>
+          </button>
+          <button class="btn btn-gradient px-4" id="submitBtn" onclick="submitQuiz()" style="display:none">
+            <i class="bi bi-check-lg me-2"></i>Submit Quiz
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Results Panel -->
+<div id="resultsPanel" style="display:none">
+  <div class="row justify-content-center">
+    <div class="col-lg-9">
+      <div class="glass-card p-5 text-center mb-4">
+        <div class="results-score-ring mb-4">
+          <svg viewBox="0 0 120 120" width="120" height="120">
+            <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(139,92,246,0.2)" stroke-width="12"/>
+            <circle id="scoreRing" cx="60" cy="60" r="52" fill="none" stroke="#8b5cf6" stroke-width="12"
+                    stroke-linecap="round" stroke-dasharray="327" stroke-dashoffset="327"
+                    transform="rotate(-90 60 60)"/>
+          </svg>
+          <div class="score-ring-value" id="scoreValue">0%</div>
+        </div>
+        <h2 class="fw-bold mb-1" id="gradeLabel">Calculating...</h2>
+        <p class="text-muted mb-3" id="scoreDetails"></p>
+        <div class="d-flex gap-3 justify-content-center flex-wrap">
+          <button class="btn btn-gradient" onclick="retakeQuiz()">
+            <i class="bi bi-arrow-clockwise me-2"></i>Take Another Quiz
+          </button>
+          <a href="{{ url_for('quiz.history') }}" class="btn btn-outline-gradient">
+            <i class="bi bi-clock-history me-2"></i>Quiz History
+          </a>
+        </div>
+      </div>
+
+      <!-- AI Feedback -->
+      <div class="glass-card p-4 mb-4" id="feedbackCard" style="display:none">
+        <h5 class="fw-bold mb-3">
+          <i class="bi bi-robot text-primary me-2"></i>LearnMate AI Feedback
+        </h5>
+        <div class="markdown-content" id="feedbackContent"></div>
+      </div>
+
+      <!-- Question Review -->
+      <div id="reviewSection"></div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const CSRF_TOKEN = "{{ csrf_token() }}";
+let questions = [], userAnswers = {}, currentQ = 0;
+let timerInterval, seconds = 0;
+let quizTopic = '', quizDifficulty = '';
+
+async function validateAndStart() {
+  const topic = document.getElementById('quizTopic').value.trim();
+  const difficulty = document.querySelector('input[name="quizDifficulty"]:checked')?.value || 'intermediate';
+
+  if (!topic) { showQuizError('Please enter a topic.'); return; }
+  clearQuizError();
+
+  document.getElementById('startBtnText').style.display = 'none';
+  document.getElementById('startBtnLoading').style.display = 'inline-flex';
+  document.getElementById('startQuizBtn').disabled = true;
+
+  // Validate topic
+  try {
+    const vRes = await fetch('/quiz/api/validate-topic', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','X-CSRFToken':CSRF_TOKEN},
+      body: JSON.stringify({topic})
+    });
+    const vData = await vRes.json();
+    if (!vData.is_valid) {
+      showQuizError(vData.reason || 'Topic not recognized as a technology topic.');
+      resetStartBtn();
+      return;
+    }
+
+    const validEl = document.getElementById('topicValidation');
+    validEl.innerHTML = `<i class="bi bi-check-circle-fill text-success me-1"></i>Topic: <strong>${vData.normalized_topic}</strong>`;
+    validEl.style.display = 'block';
+
+    // Generate quiz
+    showLoading('Generating 5 AI-powered questions...');
+    const gRes = await fetch('/quiz/api/generate', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','X-CSRFToken':CSRF_TOKEN},
+      body: JSON.stringify({topic: vData.normalized_topic, difficulty})
+    });
+    const gData = await gRes.json();
+    hideLoading();
+
+    if (!gRes.ok) {
+      showQuizError(gData.error || 'Quiz generation failed. Please try again.');
+      resetStartBtn();
+      return;
+    }
+
+    questions = gData.questions;
+    quizTopic = gData.topic;
+    quizDifficulty = gData.difficulty;
+    startQuiz();
+
+  } catch(e) {
+    hideLoading();
+    showQuizError('Network error. Please try again.');
+    resetStartBtn();
+  }
+}
+
+function startQuiz() {
+  document.getElementById('quizSetup').style.display = 'none';
+  document.getElementById('quizPanel').style.display = 'block';
+  document.getElementById('quizTopicDisplay').textContent = quizTopic;
+  document.getElementById('quizDiffDisplay').textContent = quizDifficulty.charAt(0).toUpperCase() + quizDifficulty.slice(1);
+  document.getElementById('quizDiffDisplay').className = `badge badge-${quizDifficulty}`;
+  currentQ = 0;
+  userAnswers = {};
+  seconds = 0;
+  startTimer();
+  renderQuestion();
+}
+
+function renderQuestion() {
+  const q = questions[currentQ];
+  document.getElementById('questionNumber').textContent = `Q${currentQ + 1}`;
+  document.getElementById('questionCounter').textContent = `Question ${currentQ + 1}/5`;
+  document.getElementById('quizProgressBar').style.width = `${((currentQ + 1) / 5) * 100}%`;
+  document.getElementById('answerFeedback').style.display = 'none';
+
+  // Render question text with code highlighting
+  const qText = document.getElementById('questionText');
+  qText.innerHTML = renderMarkdownForQuiz(q.question);
+  // Highlight code blocks in the question
+  qText.querySelectorAll('code').forEach(b => hljs.highlightElement(b));
+
+  const container = document.getElementById('optionsContainer');
+  container.innerHTML = '';
+
+  q.options.forEach((opt, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'option-btn';
+    if (userAnswers[currentQ] === opt) btn.classList.add('selected');
+    btn.innerHTML = `<span class="option-letter">${String.fromCharCode(65+i)}</span> ${escapeHtml(opt)}`;
+    btn.onclick = () => selectOption(btn, opt, q);
+    container.appendChild(btn);
+  });
+
+  document.getElementById('prevBtn').style.display = currentQ > 0 ? 'inline-flex' : 'none';
+  document.getElementById('nextBtn').style.display = currentQ < 4 ? 'inline-flex' : 'none';
+  document.getElementById('submitBtn').style.display = currentQ === 4 ? 'inline-flex' : 'none';
+}
+
+function selectOption(btn, opt, q) {
+  document.querySelectorAll('.option-btn').forEach(b => b.classList.remove('selected','correct','incorrect'));
+  btn.classList.add('selected');
+  userAnswers[currentQ] = opt;
+}
+
+function nextQuestion() {
+  if (currentQ < 4) { currentQ++; renderQuestion(); }
+}
+
+function prevQuestion() {
+  if (currentQ > 0) { currentQ--; renderQuestion(); }
+}
+
+function startTimer() {
+  clearInterval(timerInterval);
+  timerInterval = setInterval(() => {
+    seconds++;
+    const m = String(Math.floor(seconds/60)).padStart(2,'0');
+    const s = String(seconds%60).padStart(2,'0');
+    document.getElementById('timerDisplay').textContent = `${m}:${s}`;
+  }, 1000);
+}
+
+async function submitQuiz() {
+  clearInterval(timerInterval);
+  const answeredCount = Object.keys(userAnswers).length;
+  if (answeredCount < 5) {
+    if (!confirm(`You've answered ${answeredCount}/5 questions. Submit anyway?`)) {
+      startTimer();
+      return;
+    }
+  }
+
+  showLoading('Calculating your score and generating AI feedback...');
+  document.getElementById('submitBtn').disabled = true;
+
+  try {
+    const res = await fetch('/quiz/api/submit', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','X-CSRFToken':CSRF_TOKEN},
+      body: JSON.stringify({
+        topic: quizTopic, difficulty: quizDifficulty,
+        questions, answers: userAnswers, time_taken_seconds: seconds
+      })
+    });
+    const data = await res.json();
+    hideLoading();
+
+    if (res.ok) showResults(data);
+    else showQuizError(data.error || 'Submission failed.');
+  } catch(e) {
+    hideLoading();
+    showQuizError('Network error. Please try again.');
+  }
+}
+
+function showResults(data) {
+  document.getElementById('quizPanel').style.display = 'none';
+  document.getElementById('resultsPanel').style.display = 'block';
+
+  const score = data.score;
+  document.getElementById('scoreValue').textContent = score + '%';
+  document.getElementById('scoreDetails').textContent =
+    `${data.correct_count}/${data.total} correct in ${Math.floor(seconds/60)}m ${seconds%60}s`;
+
+  const grades = {90:'Excellent! 🏆',75:'Good Job! 👍',60:'Keep Going! 💪',0:'Needs Work 📚'};
+  const grade = Object.entries(grades).reverse().find(([k]) => score >= +k);
+  document.getElementById('gradeLabel').textContent = grade ? grade[1] : 'Try Again';
+
+  // Animate score ring
+  setTimeout(() => {
+    const circumference = 327;
+    const offset = circumference - (score / 100) * circumference;
+    const ring = document.getElementById('scoreRing');
+    ring.style.transition = 'stroke-dashoffset 1.5s ease';
+    ring.style.strokeDashoffset = offset;
+    ring.style.stroke = score >= 90 ? '#22c55e' : score >= 75 ? '#3b82f6' : score >= 60 ? '#f59e0b' : '#ef4444';
+  }, 100);
+
+  // Show feedback
+  if (data.feedback) {
+    const feedbackCard = document.getElementById('feedbackCard');
+    feedbackCard.style.display = 'block';
+    document.getElementById('feedbackContent').innerHTML = renderMarkdownForQuiz(data.feedback);
+    document.querySelectorAll('pre code').forEach(b => hljs.highlightElement(b));
+  }
+
+  // Show question review
+  const reviewSection = document.getElementById('reviewSection');
+  reviewSection.innerHTML = '';
+  data.results.forEach((r, i) => {
+    const card = document.createElement('div');
+    card.className = `glass-card p-4 mb-3 review-card ${r.is_correct ? 'review-correct' : 'review-incorrect'}`;
+    card.innerHTML = `
+      <div class="d-flex align-items-start gap-3 mb-3">
+        <span class="review-num">${i+1}</span>
+        <div class="flex-grow-1">
+          <div class="fw-semibold mb-1">${renderMarkdownForQuiz(r.question)}</div>
+        </div>
+        <i class="bi bi-${r.is_correct ? 'check-circle-fill text-success' : 'x-circle-fill text-danger'} fs-5"></i>
+      </div>
+      <div class="options-review">
+        ${r.options.map(opt => `
+          <div class="option-review ${opt === r.correct_answer ? 'correct-ans' : opt === r.user_answer && !r.is_correct ? 'wrong-ans' : ''}">
+            ${opt === r.correct_answer ? '<i class="bi bi-check-circle-fill text-success me-2"></i>' :
+              opt === r.user_answer && !r.is_correct ? '<i class="bi bi-x-circle-fill text-danger me-2"></i>' :
+              '<i class="bi bi-circle me-2 text-muted"></i>'}
+            ${escapeHtml(opt)}
+          </div>
+        `).join('')}
+      </div>
+      <div class="explanation-box mt-3">
+        <i class="bi bi-lightbulb-fill text-warning me-2"></i>
+        <strong>Explanation:</strong> ${escapeHtml(r.explanation)}
+      </div>
+    `;
+    reviewSection.appendChild(card);
+    document.querySelectorAll('pre code').forEach(b => hljs.highlightElement(b));
+  });
+
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+function retakeQuiz() {
+  document.getElementById('resultsPanel').style.display = 'none';
+  document.getElementById('quizSetup').style.display = 'block';
+  document.getElementById('topicValidation').style.display = 'none';
+  resetStartBtn();
+}
+
+function showQuizError(msg) {
+  const el = document.getElementById('quizError');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+function clearQuizError() {
+  document.getElementById('quizError').style.display = 'none';
+}
+function resetStartBtn() {
+  document.getElementById('startBtnText').style.display = 'inline-flex';
+  document.getElementById('startBtnLoading').style.display = 'none';
+  document.getElementById('startQuizBtn').disabled = false;
+}
+
+function escapeHtml(text) {
+  return String(text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function renderMarkdownForQuiz(text) {
+  if (!text) return '';
+
+  // Step 0: Normalise escape sequences.
+  // The AI returns JSON where newlines inside code may be the two-character
+  // sequence \n (backslash + n) rather than a real newline character (U+000A).
+  // Convert ALL such occurrences to real newlines so the regex below can match.
+  // Also normalise \t → real tab and \r\n / \r → \n.
+  let result = text
+    .replace(/\\r\\n/g, '\n')
+    .replace(/\\r/g, '\n')
+    .replace(/\\n/g, '\n')
+    .replace(/\\t/g, '\t');
+
+  // Step 1: Extract fenced code blocks BEFORE escaping HTML so that
+  // indentation, blank lines, and spacing are preserved byte-for-byte.
+  const codeBlocks = [];
+
+  // Match ``` optionally followed by a language tag, then a newline,
+  // then the code body (any characters including real newlines), then ```.
+  result = result.replace(/```([\w+\-#.]*)[^\S\n]*\n([\s\S]*?)```/g, (_, lang, code) => {
+    const safeLang = (lang || '').trim() || 'text';
+
+    // Escape HTML special chars inside the code — do NOT touch whitespace.
+    const safeCode = code
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+
+    const idx = codeBlocks.length;
+    codeBlocks.push(
+      `<pre class="quiz-code-block"><code class="language-${safeLang}">${safeCode}</code></pre>`
+    );
+    return `\x00CODEBLOCK_${idx}\x00`;  // NUL-delimited — safe placeholder
+  });
+
+  // Step 2: Escape HTML in the non-code text
+  result = result
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+
+  // Step 3: Inline markdown formatting
+  result = result
+    .replace(/`([^`\n]+)`/g, '<code class="inline-code">$1</code>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>');
+
+  // Step 4: Convert remaining real newlines to <br> (outside code blocks)
+  result = result.replace(/\n/g, '<br/>');
+
+  // Step 5: Restore extracted code blocks (placeholders survived HTML escaping)
+  codeBlocks.forEach((block, i) => {
+    result = result.split(`\x00CODEBLOCK_${i}\x00`).join(block);
+  });
+
+  return result;
+}
+</script>
+{% endblock %}

@@ -1,0 +1,317 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+{% block content %}
+
+<!-- Welcome Banner -->
+<div class="welcome-banner glass-card mb-4">
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+    <div>
+      <h2 class="fw-bold mb-1">
+        Welcome, <span class="gradient-text">{{ current_user.get_display_name() }}</span> 👋
+      </h2>
+      <p class="text-muted mb-0">
+        {% if current_user.career_goal %}
+          Working towards: <strong>{{ current_user.career_goal }}</strong> •
+          {{ roadmap_progress }}% roadmap complete
+        {% else %}
+          Let's set up your learning goal to get started.
+        {% endif %}
+      </p>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{{ url_for('tutor.index') }}" class="btn btn-gradient">
+        <i class="bi bi-robot me-2"></i>Ask AI Tutor
+      </a>
+      <a href="{{ url_for('quiz.index') }}" class="btn btn-outline-gradient">
+        <i class="bi bi-lightning me-2"></i>Quick Quiz
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- Stats Row -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-3">
+    <div class="stat-card glass-card">
+      <div class="stat-card-icon bg-gradient-purple">
+        <i class="bi bi-map-fill"></i>
+      </div>
+      <div class="stat-card-body">
+        <div class="stat-card-value">{{ roadmap_progress }}%</div>
+        <div class="stat-card-label">Roadmap Progress</div>
+        <div class="progress stat-progress mt-2">
+          <div class="progress-bar bg-gradient-purple" style="width:{{ roadmap_progress }}%"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="stat-card glass-card">
+      <div class="stat-card-icon bg-gradient-blue">
+        <i class="bi bi-patch-check-fill"></i>
+      </div>
+      <div class="stat-card-body">
+        <div class="stat-card-value">{{ total_quizzes }}</div>
+        <div class="stat-card-label">Quizzes Taken</div>
+        <div class="stat-card-sub">Avg: {{ avg_score }}%</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="stat-card glass-card">
+      <div class="stat-card-icon bg-gradient-green">
+        <i class="bi bi-clock-fill"></i>
+      </div>
+      <div class="stat-card-body">
+        <div class="stat-card-value">{{ total_study_mins }}</div>
+        <div class="stat-card-label">Minutes Studied</div>
+        <div class="stat-card-sub">{{ (total_study_mins // 60) }}h {{ total_study_mins % 60 }}m total</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="stat-card glass-card">
+      <div class="stat-card-icon bg-gradient-orange">
+        <i class="bi bi-check2-circle"></i>
+      </div>
+      <div class="stat-card-body">
+        <div class="stat-card-value">{{ completed_topics }}</div>
+        <div class="stat-card-label">Topics Completed</div>
+        <div class="stat-card-sub">{{ total_milestones - completed_milestones }} remaining</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Main Grid -->
+<div class="row g-4">
+
+  <!-- AI Next Step (Agentic) -->
+  <div class="col-lg-8">
+    <div class="glass-card p-4 h-100">
+      <div class="d-flex align-items-center mb-4">
+        <div class="section-icon bg-gradient-purple me-3"><i class="bi bi-robot"></i></div>
+        <div>
+          <h5 class="fw-bold mb-0">AI Recommendation</h5>
+          <small class="text-muted">AI Powered</small>
+        </div>
+        <span class="badge badge-gradient ms-auto">Agentic</span>
+      </div>
+
+      <div class="next-step-card">
+        <div class="next-step-topic">
+          <i class="bi bi-arrow-right-circle-fill text-primary me-2"></i>
+          <span class="fw-bold">{{ next_step.get('next_topic', 'Continue Learning') }}</span>
+        </div>
+        <p class="text-muted mt-2 mb-2">{{ next_step.get('why', '') }}</p>
+        <div class="next-step-action">
+          <i class="bi bi-lightbulb-fill text-warning me-2"></i>
+          <strong>Action:</strong> {{ next_step.get('action', '') }}
+        </div>
+        {% if next_step.get('estimated_time') %}
+        <div class="mt-2 small">
+          <i class="bi bi-clock me-1 text-muted"></i>
+          <span class="text-muted">Estimated time: </span>
+          <strong>{{ next_step.get('estimated_time') }}</strong>
+        </div>
+        {% endif %}
+        <div class="next-step-encouragement mt-3">
+          <i class="bi bi-stars text-warning me-2"></i>{{ next_step.get('encouragement', '') }}
+        </div>
+      </div>
+
+      <div class="d-flex gap-2 mt-3">
+        <a href="{{ url_for('roadmap.index') }}" class="btn btn-gradient btn-sm">
+          <i class="bi bi-map me-1"></i>View Roadmap
+        </a>
+        <a href="{{ url_for('tutor.index') }}" class="btn btn-outline-gradient btn-sm">
+          <i class="bi bi-robot me-1"></i>Ask Tutor
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick Actions -->
+  <div class="col-lg-4">
+    <div class="glass-card p-4 h-100">
+      <h5 class="fw-bold mb-4"><i class="bi bi-lightning-fill text-warning me-2"></i>Quick Actions</h5>
+      <div class="quick-actions-grid">
+        <a href="{{ url_for('tutor.index') }}" class="quick-action-btn">
+          <i class="bi bi-robot"></i>
+          <span>AI Tutor</span>
+        </a>
+        <a href="{{ url_for('quiz.index') }}" class="quick-action-btn">
+          <i class="bi bi-patch-question-fill"></i>
+          <span>Take Quiz</span>
+        </a>
+        <a href="{{ url_for('roadmap.index') }}" class="quick-action-btn">
+          <i class="bi bi-map-fill"></i>
+          <span>Roadmap</span>
+        </a>
+        <a href="{{ url_for('progress.index') }}" class="quick-action-btn">
+          <i class="bi bi-stopwatch-fill"></i>
+          <span>Timer</span>
+        </a>
+        <a href="{{ url_for('resources.index') }}" class="quick-action-btn">
+          <i class="bi bi-collection-fill"></i>
+          <span>Resources</span>
+        </a>
+        <a href="{{ url_for('quiz.history') }}" class="quick-action-btn">
+          <i class="bi bi-clock-history"></i>
+          <span>History</span>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Study Activity Chart -->
+  <div class="col-lg-8">
+    <div class="glass-card p-4">
+      <div class="d-flex align-items-center justify-content-between mb-4">
+        <h5 class="fw-bold mb-0"><i class="bi bi-bar-chart-fill text-info me-2"></i>Study Activity (Last 7 Days)</h5>
+      </div>
+      <canvas id="studyChart" height="100"></canvas>
+    </div>
+  </div>
+
+  <!-- Recent Quizzes -->
+  <div class="col-lg-4">
+    <div class="glass-card p-4">
+      <div class="d-flex align-items-center justify-content-between mb-4">
+        <h5 class="fw-bold mb-0"><i class="bi bi-patch-question-fill text-warning me-2"></i>Recent Quizzes</h5>
+        <a href="{{ url_for('quiz.history') }}" class="btn btn-sm btn-outline-secondary">View All</a>
+      </div>
+      {% if quiz_sessions %}
+        {% for q in quiz_sessions %}
+        <div class="recent-quiz-item">
+          <div class="rq-info">
+            <div class="rq-topic">{{ q.topic }}</div>
+            <div class="rq-meta small text-muted">{{ q.difficulty.capitalize() }} • {{ q.created_at.strftime('%b %d') }}</div>
+          </div>
+          <div class="rq-score {{ 'score-good' if q.score >= 75 else 'score-avg' if q.score >= 60 else 'score-low' }}">
+            {{ q.score }}%
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="empty-state-sm">
+          <i class="bi bi-patch-question text-muted"></i>
+          <p class="text-muted small">No quizzes yet.</p>
+          <a href="{{ url_for('quiz.index') }}" class="btn btn-gradient btn-sm">Take First Quiz</a>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Quiz Score Chart -->
+  {% if quiz_sessions %}
+  <div class="col-lg-6">
+    <div class="glass-card p-4">
+      <h5 class="fw-bold mb-4"><i class="bi bi-graph-up-arrow text-success me-2"></i>Quiz Performance</h5>
+      <canvas id="quizChart" height="120"></canvas>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Roadmap Progress -->
+  <div class="col-lg-{{ '6' if quiz_sessions else '12' }}">
+    <div class="glass-card p-4">
+      <div class="d-flex align-items-center justify-content-between mb-4">
+        <h5 class="fw-bold mb-0"><i class="bi bi-map text-primary me-2"></i>Roadmap Status</h5>
+        <a href="{{ url_for('roadmap.index') }}" class="btn btn-sm btn-outline-secondary">View Full</a>
+      </div>
+      {% if active_roadmap %}
+        <div class="mb-3">
+          <div class="d-flex justify-content-between mb-1">
+            <span class="fw-semibold">{{ active_roadmap.career_goal }}</span>
+            <span class="text-muted">{{ roadmap_progress }}%</span>
+          </div>
+          <div class="progress" style="height:10px">
+            <div class="progress-bar progress-bar-animated bg-gradient-purple"
+                 style="width:{{ roadmap_progress }}%"></div>
+          </div>
+          <div class="d-flex justify-content-between mt-2 small text-muted">
+            <span><i class="bi bi-check-circle-fill text-success me-1"></i>{{ completed_milestones }} completed</span>
+            <span><i class="bi bi-circle me-1"></i>{{ total_milestones - completed_milestones }} remaining</span>
+          </div>
+        </div>
+        <div class="current-phase-badge">
+          <i class="bi bi-bookmark-fill me-2"></i>Current: {{ current_phase_name }}
+        </div>
+      {% else %}
+        <div class="empty-state-sm">
+          <i class="bi bi-map text-muted"></i>
+          <p class="text-muted small">No roadmap generated yet.</p>
+          <a href="{{ url_for('roadmap.index') }}" class="btn btn-gradient btn-sm">Generate Roadmap</a>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const studyChartData = {{ study_chart|safe }};
+const quizChartData = {{ quiz_chart|safe }};
+const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+const gridColor = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)';
+const textColor = isDark ? '#94a3b8' : '#64748b';
+
+// Study Activity Chart
+new Chart(document.getElementById('studyChart'), {
+  type: 'bar',
+  data: {
+    labels: studyChartData.labels,
+    datasets: [{
+      label: 'Minutes Studied',
+      data: studyChartData.data,
+      backgroundColor: 'rgba(139,92,246,0.7)',
+      borderColor: '#8b5cf6',
+      borderWidth: 2,
+      borderRadius: 8,
+      hoverBackgroundColor: 'rgba(139,92,246,0.9)',
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { grid: { color: gridColor }, ticks: { color: textColor } },
+      y: { grid: { color: gridColor }, ticks: { color: textColor }, beginAtZero: true }
+    }
+  }
+});
+
+// Quiz Score Chart
+const quizEl = document.getElementById('quizChart');
+if (quizEl && quizChartData.labels.length) {
+  new Chart(quizEl, {
+    type: 'line',
+    data: {
+      labels: quizChartData.labels,
+      datasets: [{
+        label: 'Quiz Score %',
+        data: quizChartData.data,
+        borderColor: '#3b82f6',
+        backgroundColor: 'rgba(59,130,246,0.15)',
+        tension: 0.4, fill: true,
+        pointBackgroundColor: '#3b82f6',
+        pointRadius: 5,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: gridColor }, ticks: { color: textColor } },
+        y: { grid: { color: gridColor }, ticks: { color: textColor }, min: 0, max: 100 }
+      }
+    }
+  });
+}
+</script>
+{% endblock %}
