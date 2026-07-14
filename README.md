@@ -2,7 +2,7 @@
 
 A production-ready AI-powered personalized learning and career coaching platform built with Python Flask and IBM watsonx.ai Granite Foundation Models.
 
-Problem Statement Selected
+# Problem Statement Selected
 Problem Statement No.12 - Agentic AI for Personalized Course Pathways.
 The Challenge - Students often struggle to identify the right learning path that aligns with their interests and long-term goals due to the overwhelming number of online courses and a lack of personalized guidance. LearnMate aims to solve this by acting as an Agentic AI coach that interacts with students, understands their interests (like Frontend Development, Cybersecurity, UI/UX Design, etc.), assesses their current skill level, and dynamically builds a personalized course roadmap that adapts over time based on progress and preferences.
 Technology – Use of IBM Cloud Lite services / IBM Granite is mandatory.
